@@ -1,21 +1,20 @@
 #!/usr/bin/env ruby
 
-# Passenger agent to monitor status and memory status of passenger servers
+# Passenger agent to monitor status of passenger servers
 
 require "rubygems"
 require "bundler/setup"
 require "newrelic_plugin"
 require "nokogiri"
 require File.join(File.dirname(__FILE__), 'lib/status_parser')
-require File.join(File.dirname(__FILE__), 'lib/free_memory')
 require File.join(File.dirname(__FILE__), 'test/test_helper')
 
 module PassengerAgent
 
   class Agent < NewRelic::Plugin::Agent::Base
 
-    agent_guid "com.Gazelle.passenger"
-    agent_version "1.0.1"
+    agent_guid "com.aeo.passenger"
+    agent_version "0.0.1"
     agent_config_options :passenger_status, :passenger_free
     # Name of instance that will display in New Relic
     agent_human_labels("Passenger") { "#{`hostname`}" }
@@ -24,40 +23,33 @@ module PassengerAgent
     def poll_cycle
 
       #initialize
-      @free_memory = FreeMemory.new(run_command(passenger_free))
       @status = Status.new(run_command(passenger_status))
-
-      # Report Memory usage data from 'free -m' command
-      report_metric "passenger/totals/memory", "MB", @free_memory.total_memory
-      report_metric "passenger/memory/all/used", "MB", @free_memory.used_memory
-      report_metric "passenger/memory/all/free", "MB", @free_memory.free_memory
-      report_metric "passenger/memory/all/shared", "MB", @free_memory.shared_memory
-      report_metric "passenger/memory/all/other/cached", "MB", @free_memory.cached
-      report_metric "passenger/memory/app/used", "MB", @free_memory.app_used
-      report_metric "passenger/memory/app/free", "MB", @free_memory.app_free
-      report_metric "passenger/totals/swap", "MB", @free_memory.swap_total
-      report_metric "passenger/swap/used", "MB", @free_memory.swap_used
-      report_metric "passenger/swap/free", "MB", @free_memory.swap_free
-
-      # Calculated Metrics
-      percent_free = (@free_memory.free_memory.to_f / (@free_memory.used_memory.to_f + @free_memory.free_memory.to_f)) * 100
-      report_metric "passenger/calculated/percent_free", "%", percent_free
 
       # Report data from passegner-status command
       report_metric "passenger/processes/max", "Processes", @status.max
       report_metric "passenger/processes/running", "Processes", @status.current
       report_metric "passenger/queue/waiting", "Requests", @status.queue
-      report_metric "passenger/totals/sessions", "Sessions", @status.sessions
-      report_metric "passenger/totals/cpu", "CPU%", @status.cpu
-
+      # report_metric "passenger/totals/sessions", "Sessions", @status.sessions
+      @status.cpu.each do |app, cpu_pct|
+        report_metric "passenger/cpu/detail/#{app}", "CPU%", cpu_pct
+      end
+      # session count by app
+      @status.sessions.each do |app, sess_ct|
+        report_metric "passenger/sessions/detail/#{app}", "sessions", sess_ct
+      end
       # Memory usage by app
       @status.process_memory.each do |app, memory_usage|
         report_metric "passenger/memory/detail/#{app}", "MB", memory_usage
       end
-
       # Time since last used, by passenger worker
       @status.last_used_time.each do |worker_num, time_elapsed|
         report_metric "passenger/workers/time_since_last_used/#{worker_num}", "s", time_elapsed
+      end
+      @status.uptime.each do |app, uptime_sec|
+        report_metric "passenger/workers/uptime/#{app}", "s", uptime_sec
+      end
+      @status.processed.each do |app, req_ct|
+        report_metric "passenger/workers/requests/#{app}", "requests", req_ct
       end
 
     end

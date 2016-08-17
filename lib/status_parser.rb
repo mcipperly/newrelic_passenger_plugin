@@ -12,7 +12,9 @@ class Status
       parse_sessions(doc),
       parse_cpu(doc),
       parse_app_memory(doc),
-      parse_last_used(doc)
+      parse_last_used(doc),
+      parse_uptime(doc),
+      parse_processed(doc)
     ]
   end
 
@@ -44,6 +46,14 @@ class Status
     @status_result[6]
   end
 
+  def uptime
+    @status_result[7]
+  end
+
+  def processed
+    @status_result[8]
+  end
+
   private
 
   def name_clean(app_name)
@@ -58,35 +68,53 @@ class Status
   end
 
   def parse_sessions(doc)
-    sessions_total = 0
-    doc.xpath('//process/sessions').each do |x|
-      sessions_total += x.text.to_i
+    sessions_ea = Hash.new(0)
+    doc.xpath('//process').each do |x|
+      sessions_ea[x.xpath('./pid').text + x.xpath('./command').text.partition(':').last] = x.xpath('./sessions').text.to_i
     end
-    sessions_total
+    sessions_ea
   end
 
   def parse_cpu(doc)
-    cpu_total = 0
-    doc.xpath('//process/cpu').each do |x|
-      cpu_total += x.text.to_f
+    cpu_util = Hash.new(0)
+    doc.xpath('//process').each do |x|
+      cpu_util[x.xpath('./pid').text + x.xpath('./command').text.partition(':').last] = x.xpath('./cpu').text.to_i
     end
-    cpu_total
+    cpu_util
   end
 
   def parse_app_memory(doc)
     processes = Hash.new(0)
     doc.xpath('//process').each do |x|
-      processes[name_clean(x.xpath('./command').text)] += x.xpath('./real_memory').text.to_i
+      processes[x.xpath('./pid').text + x.xpath('./command').text.partition(':').last] = (x.xpath('./real_memory').text.to_i / 1000)
     end
     processes
   end
 
   def parse_last_used(doc)
     processes = Hash.new(0)
-    doc.xpath('//process').each_with_index do |x, index|
+    doc.xpath('//process').each do |x|
       unix_stamp = (x.xpath('./last_used').text.to_i / 1000000)
       elapsed = Time.now.to_i - unix_stamp
-      processes[(index + 1).to_s] = elapsed
+      processes[x.xpath('./pid').text + x.xpath('./command').text.partition(':').last] = elapsed
+    end
+    processes
+  end
+
+  def parse_uptime(doc)
+    processes = Hash.new(0)
+    doc.xpath('//process').each do |x|
+      unix_stamp = (x.xpath('./spawn_end_time').text.to_i / 1000000)
+      elapsed = Time.now.to_i - unix_stamp
+      processes[x.xpath('./pid').text + x.xpath('./command').text.partition(':').last] = elapsed
+    end
+    processes
+  end
+
+  def parse_processed(doc)
+    processes = Hash.new(0)
+    doc.xpath('//process').each do |x|
+      processes[x.xpath('./pid').text + x.xpath('./command').text.partition(':').last] = x.xpath('./processed').text.to_i
     end
     processes
   end
