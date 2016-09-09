@@ -19,9 +19,9 @@ NOTE!!! Currently supports Passenger 5, parsing may not work correctly with pass
 Data for this agent is collected by running the commands 'passenger-status --show=xml' then parsing the results
 
 Data captured for => passenger-status --show=xml
-- # of processes running (max and current)
-- # waiting in global queue
-- # waiting in per-PID queue
+- no. of processes running (max and current)
+- no. waiting in global queue
+- no. waiting in per-PID queue
 - sessions active per-PID
 - cpu usage per-PID
 - memory usage per-PID
